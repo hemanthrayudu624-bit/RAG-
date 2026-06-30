@@ -17,8 +17,7 @@ from PyPDF2 import PdfReader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_google_genai import GoogleGenerativeAIEmbeddings, ChatGoogleGenerativeAI
 from langchain_community.vectorstores import FAISS
-from langchain.chains.question_answering import load_qa_chain
-from langchain.prompts import PromptTemplate
+
 
 st.set_page_config(page_title="RAG with Gemini", layout="wide")
 
@@ -47,33 +46,26 @@ def get_vector_store(chunks, api_key):
     return vector_store
 
 
-def get_conversational_chain(api_key):
-    prompt_template = """
-    Answer the question as detailed as possible using ONLY the provided context.
-    If the answer is not available in the context, say "Answer is not available in the context."
-    Do not make up information.
-
-    Context:
-    {context}
-
-    Question:
-    {question}
-
-    Answer:
-    """
-    model = ChatGoogleGenerativeAI(model="gemini-1.5-flash", temperature=0.3, google_api_key=api_key)
-    prompt = PromptTemplate(template=prompt_template, input_variables=["context", "question"])
-    chain = load_qa_chain(model, chain_type="stuff", prompt=prompt)
-    return chain
-
-
-def answer_question(user_question, api_key):
+def get_answer(user_question, api_key):
     embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001", google_api_key=api_key)
     vector_store = FAISS.load_local("faiss_index", embeddings, allow_dangerous_deserialization=True)
     docs = vector_store.similarity_search(user_question, k=4)
-    chain = get_conversational_chain(api_key)
-    response = chain({"input_documents": docs, "question": user_question}, return_only_outputs=True)
-    return response["output_text"], docs
+    context = "\n\n".join(d.page_content for d in docs)
+
+    model = ChatGoogleGenerativeAI(model="gemini-1.5-flash", temperature=0.3, google_api_key=api_key)
+    prompt = f"""Answer the question as detailed as possible using ONLY the provided context.
+If the answer is not available in the context, say "Answer is not available in the context."
+Do not make up information.
+
+Context:
+{context}
+
+Question:
+{user_question}
+
+Answer:"""
+    response = model.invoke(prompt)
+    return response.content, docs
 
 
 # ---------------------------------------------------------------------------
@@ -125,7 +117,7 @@ if user_question:
             st.markdown(user_question)
 
         with st.spinner("Thinking..."):
-            answer, sources = answer_question(user_question, api_key)
+            answer, sources = get_answer(user_question, api_key)
 
         st.session_state.history.append({"role": "assistant", "content": answer, "sources": sources})
         with st.chat_message("assistant"):
