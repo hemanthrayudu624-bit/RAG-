@@ -40,14 +40,14 @@ def get_text_chunks(text):
 
 
 def get_vector_store(chunks, api_key):
-    embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001", google_api_key=api_key)
+    embeddings = GoogleGenerativeAIEmbeddings(model="models/gemini-embedding-001", google_api_key=api_key)
     vector_store = FAISS.from_texts(chunks, embedding=embeddings)
     vector_store.save_local("faiss_index")
     return vector_store
 
 
 def get_answer(user_question, api_key):
-    embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001", google_api_key=api_key)
+    embeddings = GoogleGenerativeAIEmbeddings(model="models/gemini-embedding-001", google_api_key=api_key)
     vector_store = FAISS.load_local("faiss_index", embeddings, allow_dangerous_deserialization=True)
     docs = vector_store.similarity_search(user_question, k=4)
     context = "\n\n".join(d.page_content for d in docs)
